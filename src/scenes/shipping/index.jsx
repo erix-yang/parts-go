@@ -23,6 +23,11 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import imageCompression from 'browser-image-compression';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import SearchIcon from '@mui/icons-material/Search';
+import InputAdornment from '@mui/material/InputAdornment';
+import DownloadIcon from '@mui/icons-material/Download';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
 // 修复 Leaflet 图标问题
 delete L.Icon.Default.prototype._getIconUrl;
@@ -60,6 +65,15 @@ const Shipping = () => {
   const [currentImage, setCurrentImage] = useState('');
   const [openMapDialog, setOpenMapDialog] = useState(false);
   const [mapDialogTitle, setMapDialogTitle] = useState('');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [mobileFilters, setMobileFilters] = useState({
+    status: '',
+    driver: '',
+    shop_name: '',
+    search: '',
+    date: ''
+  });
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     getShippingData();
@@ -321,6 +335,137 @@ const Shipping = () => {
     }
   };
 
+  // 处理手机端筛选
+  const handleMobileFilterChange = (e) => {
+    const { name, value } = e.target;
+    setMobileFilters({
+      ...mobileFilters,
+      [name]: value
+    });
+  };
+
+  const applyMobileFilters = () => {
+    let filtered = [...shippingData];
+    
+    // 按状态筛选
+    if (mobileFilters.status) {
+      filtered = filtered.filter(item => item.status === mobileFilters.status);
+    }
+    
+    // 按司机筛选
+    if (mobileFilters.driver) {
+      filtered = filtered.filter(item => item.driver === mobileFilters.driver);
+    }
+    
+    // 按商店名称筛选
+    if (mobileFilters.shop_name) {
+      filtered = filtered.filter(item => item.shop_name === mobileFilters.shop_name);
+    }
+    
+    // 按日期筛选
+    if (mobileFilters.date) {
+      filtered = filtered.filter(item => {
+        const itemDate = new Date(item.date).toISOString().split('T')[0];
+        return itemDate === mobileFilters.date; // 比较日期
+      });
+    }
+    
+    // 全局搜索
+    if (mobileFilters.search) {
+      const searchTerm = mobileFilters.search.toLowerCase();
+      filtered = filtered.filter(item => 
+        (item.shop_name && item.shop_name.toLowerCase().includes(searchTerm)) ||
+        (item.invoice && item.invoice.toLowerCase().includes(searchTerm)) ||
+        (item.driver && item.driver.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    setFilteredShippingData(filtered);
+    setMobileFilterOpen(false);
+  };
+
+  const resetMobileFilters = () => {
+    setMobileFilters({
+      status: '',
+      driver: '',
+      shop_name: '',
+      search: '',
+      date: ''
+    });
+    setFilteredShippingData(shippingData);
+    setMobileFilterOpen(false);
+  };
+
+  // 处理导出功能，包括照片URL
+  const handleExportWithImages = async () => {
+    try {
+      setIsExporting(true);
+      
+      // 为所有有照片的记录获取照片的公共URL
+      const dataWithImageUrls = await Promise.all(
+        filteredShippingData.map(async (item) => {
+          let imageUrl = '';
+          if (item.delivery_image_path) {
+            try {
+              const { data, error } = await supabase.storage
+                .from('delivery-images')
+                .getPublicUrl(item.delivery_image_path);
+              
+              if (!error && data) {
+                imageUrl = data.publicUrl;
+              }
+            } catch (e) {
+              console.error('Error getting image URL:', e);
+            }
+          }
+          
+          return {
+            ...item,
+            image_url: imageUrl
+          };
+        })
+      );
+      
+      // 生成CSV内容
+      const headers = [
+        'ID', 'Date', 'Driver', 'Invoice', 'Task', 
+        'Shop Name', 'Status', 'Longitude', 'Latitude', 'Image URL'
+      ];
+      
+      const csvContent = [
+        headers.join(','),
+        ...dataWithImageUrls.map(item => [
+          item.id,
+          item.date ? new Date(item.date).toISOString().split('T')[0] : '',
+          item.driver || '',
+          item.invoice || '',
+          item.task || '',
+          item.shop_name || '',
+          item.status || '',
+          item.addr_longitude || '',
+          item.addr_latitude || '',
+          item.image_url || ''
+        ].join(','))
+      ].join('\n');
+      
+      // 创建并下载CSV文件
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `shipping_data_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Error exporting data with images');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const columns = [
     { field: "id", headerName: "ID", flex: 0.5 },
     { 
@@ -377,52 +522,133 @@ const Shipping = () => {
   const renderMobileCards = () => {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {filteredShippingData.map((shipping) => (
-          <Card key={shipping.id} sx={{ backgroundColor: colors.primary[400] }}>
-            <CardContent>
-              <Typography variant="h5" gutterBottom>
-                {shipping.shop_name}
-              </Typography>
-              <Box display="flex" alignItems="center" mb={1}>
-                {getStatusIcon(shipping.status)}
-                <Typography variant="body1" sx={{ ml: 1 }}>
-                  {shipping.status}
+        {/* 添加移动端筛选UI */}
+        <Box sx={{ mb: 2 }}>
+          <Box display="flex" gap={1} mb={1}>
+            <TextField
+              fullWidth
+              placeholder="Search..."
+              size="small"
+              name="search"
+              value={mobileFilters.search}
+              onChange={handleMobileFilterChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button 
+              variant="contained"
+              onClick={() => setMobileFilterOpen(true)}
+              sx={{ 
+                backgroundColor: colors.blueAccent[600],
+                color: colors.grey[100],
+              }}
+            >
+              <FilterListIcon />
+            </Button>
+          </Box>
+          
+          {/* 添加导出按钮 */}
+          <Box display="flex" justifyContent="flex-end" mb={1}>
+            <Button
+              variant="contained"
+              startIcon={<FileDownloadIcon />}
+              onClick={handleExportWithImages}
+              disabled={isExporting || filteredShippingData.length === 0}
+              sx={{
+                backgroundColor: colors.greenAccent[600],
+                color: colors.grey[100],
+                fontSize: "12px",
+              }}
+            >
+              {isExporting ? 'Exporting...' : 'Export CSV with Images'}
+            </Button>
+          </Box>
+          
+          {(mobileFilters.status || mobileFilters.driver || mobileFilters.shop_name) && (
+            <Box display="flex" gap={1} flexWrap="wrap">
+              {mobileFilters.status && (
+                <Typography variant="caption" sx={{ backgroundColor: colors.blueAccent[700], p: 0.5, borderRadius: 1 }}>
+                  Status: {mobileFilters.status}
                 </Typography>
-              </Box>
-              <Typography variant="body2" color={colors.grey[300]}>
-                Date: {new Date(shipping.date).toLocaleDateString()}
-              </Typography>
-              <Typography variant="body2" color={colors.grey[300]}>
-                Driver: {shipping.driver}
-              </Typography>
-              <Typography variant="body2" color={colors.grey[300]}>
-                Invoice: {shipping.invoice}
-              </Typography>
-              <Typography variant="body2" color={colors.grey[300]}>
-                Task: {shipping.task}
-              </Typography>
-            </CardContent>
-            <CardActions>
-              <IconButton onClick={() => handleEdit(shipping)}>
-                <EditIcon />
-              </IconButton>
-              <IconButton onClick={() => handleDelete(shipping.id)}>
-                <DeleteIcon />
-              </IconButton>
-              <IconButton 
-                onClick={() => handleDelivered(shipping)}
-                disabled={shipping.status === 'Delivered'}
-              >
-                <DirectionsCarIcon />
-              </IconButton>
-              {shipping.delivery_image_path && (
-                <IconButton onClick={() => viewImage(shipping.delivery_image_path)}>
-                  <CameraAltIcon />
-                </IconButton>
               )}
-            </CardActions>
-          </Card>
-        ))}
+              {mobileFilters.driver && (
+                <Typography variant="caption" sx={{ backgroundColor: colors.blueAccent[700], p: 0.5, borderRadius: 1 }}>
+                  Driver: {mobileFilters.driver}
+                </Typography>
+              )}
+              {mobileFilters.shop_name && (
+                <Typography variant="caption" sx={{ backgroundColor: colors.blueAccent[700], p: 0.5, borderRadius: 1 }}>
+                  Shop: {mobileFilters.shop_name}
+                </Typography>
+              )}
+              <Typography 
+                variant="caption" 
+                sx={{ backgroundColor: colors.redAccent[700], p: 0.5, borderRadius: 1, cursor: 'pointer' }}
+                onClick={resetMobileFilters}
+              >
+                Clear All
+              </Typography>
+            </Box>
+          )}
+        </Box>
+        
+        {filteredShippingData.length === 0 ? (
+          <Box p={2} textAlign="center">
+            <Typography>No records found with current filters</Typography>
+          </Box>
+        ) : (
+          filteredShippingData.map((shipping) => (
+            <Card key={shipping.id} sx={{ backgroundColor: colors.primary[400] }}>
+              <CardContent>
+                <Typography variant="h5" gutterBottom>
+                  {shipping.shop_name}
+                </Typography>
+                <Box display="flex" alignItems="center" mb={1}>
+                  {getStatusIcon(shipping.status)}
+                  <Typography variant="body1" sx={{ ml: 1 }}>
+                    {shipping.status}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color={colors.grey[300]}>
+                  Date: {new Date(shipping.date).toLocaleDateString()}
+                </Typography>
+                <Typography variant="body2" color={colors.grey[300]}>
+                  Driver: {shipping.driver}
+                </Typography>
+                <Typography variant="body2" color={colors.grey[300]}>
+                  Invoice: {shipping.invoice}
+                </Typography>
+                <Typography variant="body2" color={colors.grey[300]}>
+                  Task: {shipping.task}
+                </Typography>
+              </CardContent>
+              <CardActions>
+                <IconButton onClick={() => handleEdit(shipping)}>
+                  <EditIcon />
+                </IconButton>
+                <IconButton onClick={() => handleDelete(shipping.id)}>
+                  <DeleteIcon />
+                </IconButton>
+                <IconButton 
+                  onClick={() => handleDelivered(shipping)}
+                  disabled={shipping.status === 'Delivered'}
+                >
+                  <DirectionsCarIcon />
+                </IconButton>
+                {shipping.delivery_image_path && (
+                  <IconButton onClick={() => viewImage(shipping.delivery_image_path)}>
+                    <CameraAltIcon />
+                  </IconButton>
+                )}
+              </CardActions>
+            </Card>
+          ))
+        )}
       </Box>
     );
   };
@@ -448,6 +674,30 @@ const Shipping = () => {
     const avgLatitude = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
     const avgLongitude = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
     return [avgLatitude, avgLongitude];
+  };
+
+  // 自定义工具栏组件，添加导出带图片的CSV按钮
+  const CustomToolbar = () => {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <GridToolbar />
+        <Button
+          startIcon={<DownloadIcon />}
+          onClick={handleExportWithImages}
+          disabled={isExporting}
+          sx={{
+            ml: 2,
+            backgroundColor: colors.greenAccent[600],
+            color: colors.grey[100],
+            '&:hover': {
+              backgroundColor: colors.greenAccent[700],
+            },
+          }}
+        >
+          {isExporting ? 'Exporting...' : 'Export CSV with Images'}
+        </Button>
+      </Box>
+    );
   };
 
   return (
@@ -520,7 +770,7 @@ const Shipping = () => {
           <DataGrid
             rows={shippingData}
             columns={columns}
-            components={{ Toolbar: GridToolbar }}
+            components={{ Toolbar: CustomToolbar }}
             onFilterModelChange={handleFilterModelChange}
           />
         )}
@@ -712,6 +962,75 @@ const Shipping = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenMapDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mobile Filter Dialog */}
+      <Dialog open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} fullWidth>
+        <DialogTitle>Filter Records</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                name="status"
+                value={mobileFilters.status}
+                onChange={handleMobileFilterChange}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="Pending">Pending</MenuItem>
+                <MenuItem value="In Transit">In Transit</MenuItem>
+                <MenuItem value="Delivered">Delivered</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>Driver</InputLabel>
+              <Select
+                name="driver"
+                value={mobileFilters.driver}
+                onChange={handleMobileFilterChange}
+              >
+                <MenuItem value="">All</MenuItem>
+                {drivers.map((driver) => (
+                  <MenuItem key={driver.id} value={driver.name}>
+                    {driver.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>Shop</InputLabel>
+              <Select
+                name="shop_name"
+                value={mobileFilters.shop_name}
+                onChange={handleMobileFilterChange}
+              >
+                <MenuItem value="">All</MenuItem>
+                {clientShops.map((shop) => (
+                  <MenuItem key={shop.id} value={shop.shop_name}>
+                    {shop.shop_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <TextField
+                name="date"
+                label="Date"
+                type="date"
+                value={mobileFilters.date}
+                onChange={handleMobileFilterChange}
+                InputLabelProps={{ shrink: true }}
+              />
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={resetMobileFilters}>Reset</Button>
+          <Button onClick={applyMobileFilters} variant="contained">Apply</Button>
         </DialogActions>
       </Dialog>
     </Box>

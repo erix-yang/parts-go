@@ -369,7 +369,7 @@ const ClientShop = () => {
               label="Google Maps Link"
               value={formData.gmap_link}
               onChange={handleInputChange}
-              helperText="Paste Google Maps link - coordinates will be extracted automatically"
+              helperText="Paste Google Maps link here. Make sure you maximize the map to get the accurate coordinates."
               fullWidth
               multiline
               maxRows={4}

@@ -56,7 +56,7 @@ function App() {
                 <Topbar setIsSidebar={setIsSidebar} />
                 <Routes>
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<Navigate to="/shipping" />} />
                   <Route path="/team" element={<Team />} />
                   <Route path="/contacts" element={<Contacts />} />
                   <Route path="/invoices" element={<Invoices />} />

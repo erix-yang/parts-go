@@ -77,7 +77,7 @@ const SidebarComponent = () => {
                 ml="15px"
               >
                 <Typography variant="h3" color={colors.grey[100]}>
-                  Admin
+                  Parts Helper
                 </Typography>
                 <IconButton onClick={() => setIsCollapsed(!isCollapsed)}>
                   <MenuOutlinedIcon />
@@ -105,10 +105,10 @@ const SidebarComponent = () => {
                   fontWeight="bold"
                   sx={{ m: "10px 0 0 0" }}
                 >
-                  Erix Yang
+                  Parts
                 </Typography>
-                <Typography variant="h5" color={colors.greenAccent[500]}>
-                  UBC
+                <Typography variant="h5" color={colors.greenAccent[200]}>
+                  Mercedes Benz Surrey
                 </Typography>
               </Box>
             </Box>
@@ -129,7 +129,7 @@ const SidebarComponent = () => {
               color={colors.grey[300]}
               sx={{ m: "15px 0 5px 20px" }}
             >
-              Data
+              Parts Delivery
             </Typography>
             <Item
               title="Manage Team"
@@ -165,15 +165,15 @@ const SidebarComponent = () => {
               color={colors.grey[300]}
               sx={{ m: "15px 0 5px 20px" }}
             >
-              Pages
+              Tools
             </Typography>
-            <Item
+            {/* <Item
               title="Profile Form"
               to="/form"
               icon={<PersonOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
-            />
+            /> */}
             <Item
               title="Calendar"
               to="/calendar"
