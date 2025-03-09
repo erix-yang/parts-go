@@ -1,5 +1,6 @@
 import { createContext, useState, useContext, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { v4 as uuidv4 } from 'uuid'
 
 const AuthContext = createContext({})
 
@@ -44,20 +45,25 @@ export const AuthProvider = ({ children }) => {
       }
 
       // 2. 创建用户配置
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          email: email,
-          role: 'customer'
-        })
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('name', 'customer')
+        .single()
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError)
-        // 如果配置创建失败，可以选择删除认证用户
-        await supabase.auth.signOut()
-        throw new Error(`Failed to create user profile: ${profileError.message}`)
+      if (roleError) throw roleError
+
+      const userProfileData = {
+        id: uuidv4(),
+        email: email,
+        role: roleData.id,
       }
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .insert([userProfileData])
+
+      if (error) throw error
 
       return authData
     } catch (error) {
