@@ -953,6 +953,12 @@ const Shipping = () => {
                       <p>Status: {shipping.status}</p>
                       <p>Driver: {shipping.driver}</p>
                       <p>Date: {new Date(shipping.date).toLocaleDateString()}</p>
+                      <Button 
+                        variant="contained" 
+                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
+                      >
+                        Open in Google Map
+                      </Button>
                     </div>
                   </Popup>
                 </Marker>
