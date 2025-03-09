@@ -26,6 +26,7 @@ import { LinearProgress } from "@mui/material";
 import Supplychain from "./scenes/supplychain";
 import OrderDetail from "./pages/OrderDetail";
 import Shipping from './scenes/shipping';
+import ClientShop from "./scenes/clientshop/index";
 
 function App() {
   const [theme, colorMode] = useMode();
@@ -70,6 +71,7 @@ function App() {
                   <Route path="/supplychain" element={<Supplychain />} />
                   <Route path="/orderDetail/:id" element={<OrderDetail />} />
                   <Route path="/shipping" element={<Shipping />} />
+                  <Route path="/clientshop" element={<ClientShop />} />
                 </Routes>
               </main>
             </div>

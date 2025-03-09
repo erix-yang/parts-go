@@ -17,7 +17,20 @@ import CardContent from '@mui/material/CardContent';
 import CardActions from '@mui/material/CardActions';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
+import LinkIcon from '@mui/icons-material/Link';
+import MapIcon from '@mui/icons-material/Map';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import imageCompression from 'browser-image-compression';
+
+// 修复 Leaflet 图标问题
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const Shipping = () => {
   const theme = useTheme();
@@ -26,6 +39,9 @@ const Shipping = () => {
   const fileInputRef = useRef(null);
 
   const [shippingData, setShippingData] = useState([]);
+  const [filteredShippingData, setFilteredShippingData] = useState([]);
+  const [clientShops, setClientShops] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState('add');
   const [selectedShipping, setSelectedShipping] = useState(null);
@@ -36,17 +52,25 @@ const Shipping = () => {
     task: 'Drop Off',
     shop_name: '',
     status: 'Pending',
-    shop_addr: '',
     addr_longitude: '',
     addr_latitude: '',
     delivery_image_path: ''
   });
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [currentImage, setCurrentImage] = useState('');
+  const [openMapDialog, setOpenMapDialog] = useState(false);
+  const [mapDialogTitle, setMapDialogTitle] = useState('');
 
   useEffect(() => {
     getShippingData();
+    getClientShops();
+    getDrivers();
   }, []);
+
+  // 当 DataGrid 筛选结果变化时更新 filteredShippingData
+  useEffect(() => {
+    setFilteredShippingData(shippingData);
+  }, [shippingData]);
 
   const getShippingData = async () => {
     try {
@@ -57,16 +81,57 @@ const Shipping = () => {
       
       if (error) throw error;
       setShippingData(data);
+      setFilteredShippingData(data);
     } catch (error) {
       console.error('Error fetching shipping data:', error.message);
     }
   };
 
+  const getClientShops = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientshop')
+        .select('*')
+        .order('shop_name');
+      
+      if (error) throw error;
+      setClientShops(data);
+    } catch (error) {
+      console.error('Error fetching client shops:', error.message);
+    }
+  };
+
+  const getDrivers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('team')
+        .select('name');
+      
+      if (error) throw error;
+      setDrivers(data);
+    } catch (error) {
+      console.error('Error fetching drivers:', error.message);
+    }
+  };
+
   const handleInputChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
+
+    // 当选择商店名称时，自动填充经纬度
+    if (name === 'shop_name') {
+      const selectedShop = clientShops.find(shop => shop.shop_name === value);
+      if (selectedShop) {
+        setFormData(prev => ({
+          ...prev,
+          addr_longitude: selectedShop.longitude,
+          addr_latitude: selectedShop.latitude
+        }));
+      }
+    }
   };
 
   const handleAdd = () => {
@@ -78,7 +143,6 @@ const Shipping = () => {
       task: 'Drop Off',
       shop_name: '',
       status: 'Pending',
-      shop_addr: '',
       addr_longitude: '',
       addr_latitude: '',
       delivery_image_path: ''
@@ -96,7 +160,6 @@ const Shipping = () => {
       task: shipping.task || 'Drop Off',
       shop_name: shipping.shop_name || '',
       status: shipping.status || 'Pending',
-      shop_addr: shipping.shop_addr || '',
       addr_longitude: shipping.addr_longitude || '',
       addr_latitude: shipping.addr_latitude || '',
       delivery_image_path: shipping.delivery_image_path || ''
@@ -156,9 +219,9 @@ const Shipping = () => {
 
         // 压缩图像
         const options = {
-          maxSizeMB: 1, // 最大文件大小（MB）
-          maxWidthOrHeight: 1920, // 最大宽度或高度
-          useWebWorker: true, // 使用 Web Worker
+          maxSizeMB: 1, 
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
         };
 
         try {
@@ -227,6 +290,37 @@ const Shipping = () => {
     }
   };
 
+  // 处理 DataGrid 筛选变化
+  const handleFilterModelChange = (model) => {
+    // 这里简单实现，在实际应用中您可能需要更复杂的筛选逻辑
+    if (model.items.length > 0) {
+      // 有筛选条件
+      const filtered = shippingData.filter(item => {
+        for (const filter of model.items) {
+          const field = filter.field;
+          const value = filter.value;
+          const operator = filter.operator;
+
+          if (operator === 'contains') {
+            if (!String(item[field]).toLowerCase().includes(String(value).toLowerCase())) {
+              return false;
+            }
+          } else if (operator === 'equals') {
+            if (String(item[field]) !== String(value)) {
+              return false;
+            }
+          }
+          // 可以根据需要添加更多操作符的处理
+        }
+        return true;
+      });
+      setFilteredShippingData(filtered);
+    } else {
+      // 没有筛选条件
+      setFilteredShippingData(shippingData);
+    }
+  };
+
   const columns = [
     { field: "id", headerName: "ID", flex: 0.5 },
     { 
@@ -283,7 +377,7 @@ const Shipping = () => {
   const renderMobileCards = () => {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {shippingData.map((shipping) => (
+        {filteredShippingData.map((shipping) => (
           <Card key={shipping.id} sx={{ backgroundColor: colors.primary[400] }}>
             <CardContent>
               <Typography variant="h5" gutterBottom>
@@ -307,12 +401,6 @@ const Shipping = () => {
               <Typography variant="body2" color={colors.grey[300]}>
                 Task: {shipping.task}
               </Typography>
-              <Box display="flex" alignItems="center" mt={1}>
-                <LocationOnIcon fontSize="small" />
-                <Typography variant="body2" color={colors.grey[300]} sx={{ ml: 1 }}>
-                  {shipping.shop_addr}
-                </Typography>
-              </Box>
             </CardContent>
             <CardActions>
               <IconButton onClick={() => handleEdit(shipping)}>
@@ -339,11 +427,48 @@ const Shipping = () => {
     );
   };
 
+  const handleOpenMap = () => {
+    setMapDialogTitle('View Selected Shipping Locations');
+    setOpenMapDialog(true);
+  };
+
+  const calculateMapCenter = () => {
+    const validShippings = filteredShippingData.filter(
+      shipping => shipping.addr_latitude && shipping.addr_longitude && 
+      !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
+    );
+
+    if (validShippings.length === 0) {
+      // 默认显示温哥华
+      return [49.2827, -123.1207];
+    }
+
+    const latitudes = validShippings.map(s => parseFloat(s.addr_latitude));
+    const longitudes = validShippings.map(s => parseFloat(s.addr_longitude));
+    const avgLatitude = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+    const avgLongitude = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+    return [avgLatitude, avgLongitude];
+  };
+
   return (
     <Box m="20px">
       <Header title="SHIPPING" subtitle="Manage Shipping Tasks" />
       
-      <Box display="flex" justifyContent="flex-end" mb={2}>
+      <Box display="flex" justifyContent="space-between" mb={2}>
+        <Button
+          variant="contained"
+          startIcon={<MapIcon />}
+          onClick={handleOpenMap}
+          sx={{
+            backgroundColor: colors.greenAccent[600],
+            color: colors.grey[100],
+            fontSize: "14px",
+            fontWeight: "bold",
+            padding: "10px 20px",
+          }}
+        >
+          View Selected Shipping
+        </Button>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -396,6 +521,7 @@ const Shipping = () => {
             rows={shippingData}
             columns={columns}
             components={{ Toolbar: GridToolbar }}
+            onFilterModelChange={handleFilterModelChange}
           />
         )}
       </Box>
@@ -419,6 +545,7 @@ const Shipping = () => {
             component="form"
             sx={{
               '& .MuiTextField-root': { m: 1, width: isMobile ? '100%' : '47%' },
+              '& .MuiFormControl-root': { m: 1, width: isMobile ? '100%' : '47%' },
             }}
             noValidate
             autoComplete="off"
@@ -431,19 +558,28 @@ const Shipping = () => {
               onChange={handleInputChange}
               InputLabelProps={{ shrink: true }}
             />
-            <TextField
-              name="driver"
-              label="Driver"
-              value={formData.driver}
-              onChange={handleInputChange}
-            />
+            <FormControl fullWidth>
+              <InputLabel>Driver</InputLabel>
+              <Select
+                name="driver"
+                value={formData.driver}
+                onChange={handleInputChange}
+                required
+              >
+                {drivers.map((driver) => (
+                  <MenuItem key={driver.id} value={driver.name}>
+                    {driver.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               name="invoice"
               label="Invoice"
               value={formData.invoice}
               onChange={handleInputChange}
             />
-            <FormControl sx={{ m: 1, width: isMobile ? '100%' : '47%' }}>
+            <FormControl>
               <InputLabel>Task</InputLabel>
               <Select
                 name="task"
@@ -456,14 +592,26 @@ const Shipping = () => {
                 <MenuItem value="Pick Up Core">Pick Up Core</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              name="shop_name"
-              label="Shop Name"
-              value={formData.shop_name}
-              onChange={handleInputChange}
-              required
-            />
-            <FormControl sx={{ m: 1, width: isMobile ? '100%' : '47%' }}>
+            
+            {/* Shop Name 从 clientshop 表中获取 */}
+            <FormControl>
+              <InputLabel>Shop Name</InputLabel>
+              <Select
+                name="shop_name"
+                value={formData.shop_name}
+                label="Shop Name"
+                onChange={handleInputChange}
+                required
+              >
+                {clientShops.map((shop) => (
+                  <MenuItem key={shop.id} value={shop.shop_name}>
+                    {shop.shop_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl>
               <InputLabel>Status</InputLabel>
               <Select
                 name="status"
@@ -476,20 +624,17 @@ const Shipping = () => {
                 <MenuItem value="Delivered">Delivered</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              name="shop_addr"
-              label="Shop Address"
-              value={formData.shop_addr}
-              onChange={handleInputChange}
-              fullWidth
-              sx={{ m: 1 }}
-            />
+            
+            {/* 经纬度只读展示 */}
             <TextField
               name="addr_longitude"
               label="Longitude"
               type="number"
               value={formData.addr_longitude}
               onChange={handleInputChange}
+              InputProps={{
+                readOnly: true,
+              }}
             />
             <TextField
               name="addr_latitude"
@@ -497,6 +642,9 @@ const Shipping = () => {
               type="number"
               value={formData.addr_latitude}
               onChange={handleInputChange}
+              InputProps={{
+                readOnly: true,
+              }}
             />
           </Box>
         </DialogContent>
@@ -515,6 +663,55 @@ const Shipping = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowImageDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 地图对话框 - 显示筛选后的 shipping 记录 */}
+      <Dialog 
+        open={openMapDialog} 
+        onClose={() => setOpenMapDialog(false)} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <DialogTitle>
+          {mapDialogTitle}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ height: '70vh', width: '100%' }}>
+            <MapContainer 
+              center={calculateMapCenter()} 
+              zoom={11} 
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {filteredShippingData.filter(shipping => 
+                shipping.addr_latitude && shipping.addr_longitude && 
+                !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
+              ).map(shipping => (
+                <Marker 
+                  key={shipping.id} 
+                  position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
+                >
+                  <Popup>
+                    <div>
+                      <h3>{shipping.shop_name}</h3>
+                      <p>Invoice: {shipping.invoice}</p>
+                      <p>Task: {shipping.task}</p>
+                      <p>Status: {shipping.status}</p>
+                      <p>Driver: {shipping.driver}</p>
+                      <p>Date: {new Date(shipping.date).toLocaleDateString()}</p>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenMapDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

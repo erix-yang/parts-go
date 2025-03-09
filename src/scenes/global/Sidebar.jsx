@@ -138,16 +138,16 @@ const SidebarComponent = () => {
               selected={selected}
               setSelected={setSelected}
             />
-            <Item
+            {/* <Item
               title="Contacts Information"
               to="/contacts"
               icon={<ContactsOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
-            />
+            /> */}
             <Item
-              title="Invoices"
-              to="/invoices"
+              title="Client Shops"
+              to="/clientshop"
               icon={<ReceiptOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
