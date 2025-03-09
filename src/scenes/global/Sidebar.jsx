@@ -94,7 +94,7 @@ const SidebarComponent = () => {
                   alt="profile-user"
                   width="100px"
                   height="100px"
-                  src={`../../assets/user.png`}
+                  src="https://www.mbusa.com/etc/designs/mb-nafta/images/Mercedes_Benz__logo--desktop.png"
                   style={{ cursor: "pointer", borderRadius: "50%" }}
                 />
               </Box>
@@ -177,6 +177,13 @@ const SidebarComponent = () => {
             <Item
               title="Calendar"
               to="/calendar"
+              icon={<CalendarTodayOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+            />
+            <Item
+              title="Promo Ads"
+              to="/promoads"
               icon={<CalendarTodayOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}

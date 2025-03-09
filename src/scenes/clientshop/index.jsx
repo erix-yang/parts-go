@@ -280,6 +280,10 @@ const ClientShop = () => {
           sx={{
             backgroundColor: colors.greenAccent[600],
             color: colors.grey[100],
+            '&:hover': {
+              backgroundColor: colors.greenAccent[500],
+              color: colors.grey[100],
+            },
             fontSize: "14px",
             fontWeight: "bold",
             padding: "10px 20px",
@@ -294,6 +298,10 @@ const ClientShop = () => {
           sx={{
             backgroundColor: colors.blueAccent[600],
             color: colors.grey[100],
+            '&:hover': {
+              backgroundColor: colors.blueAccent[500],
+              color: colors.grey[100],
+            },
             fontSize: "14px",
             fontWeight: "bold",
             padding: "10px 20px",

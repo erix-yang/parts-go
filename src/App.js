@@ -27,6 +27,8 @@ import Supplychain from "./scenes/supplychain";
 import OrderDetail from "./pages/OrderDetail";
 import Shipping from './scenes/shipping';
 import ClientShop from "./scenes/clientshop/index";
+import PromoAds from "./scenes/promoads/index";
+import Deals from "./scenes/deals";
 
 function App() {
   const [theme, colorMode] = useMode();
@@ -56,7 +58,7 @@ function App() {
                 <Topbar setIsSidebar={setIsSidebar} />
                 <Routes>
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="/" element={<Navigate to="/shipping" />} />
+                  <Route path="/" element={<Navigate to="/deals" />} />
                   <Route path="/team" element={<Team />} />
                   <Route path="/contacts" element={<Contacts />} />
                   <Route path="/invoices" element={<Invoices />} />
@@ -72,6 +74,8 @@ function App() {
                   <Route path="/orderDetail/:id" element={<OrderDetail />} />
                   <Route path="/shipping" element={<Shipping />} />
                   <Route path="/clientshop" element={<ClientShop />} />
+                  <Route path="/promoads" element={<PromoAds />} />
+                  <Route path="/deals" element={<Deals />} />
                 </Routes>
               </main>
             </div>
