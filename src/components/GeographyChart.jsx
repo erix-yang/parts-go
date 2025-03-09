@@ -1,3 +1,4 @@
+import React from 'react';
 import { useTheme } from "@mui/material";
 import { ResponsiveChoropleth } from "@nivo/geo";
 import { geoFeatures } from "../data/mockGeoFeatures";

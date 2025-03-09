@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import Header from "../../components/Header";
 import { tokens } from "../../theme";
+import { formatDate as coreFormatDate } from '@fullcalendar/core';
 
 const Calendar = () => {
   const theme = useTheme();
@@ -73,7 +74,7 @@ const Calendar = () => {
                   primary={event.title}
                   secondary={
                     <Typography>
-                      {formatDate(event.start, {
+                      {coreFormatDate(event.start, {
                         year: "numeric",
                         month: "short",
                         day: "numeric",

@@ -2,6 +2,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useState, useEffect } from 'react'
+import React from 'react';
 
 export const RequireRole = ({ children, allowedRoles }) => {
   const { user } = useAuth()

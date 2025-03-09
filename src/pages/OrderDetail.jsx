@@ -72,7 +72,13 @@ const OrderDetail = () => {
     { field: "itemname", headerName: "Item Name", flex: 1 },
     { field: "shippingmethod", headerName: "Shipping Method", flex: 1 },
     { field: "courier", headerName: "Courier", flex: 1 },
-    { field: "expecteddate", headerName: "Expected Date", flex: 1, type: 'date' },
+    { 
+      field: "expecteddate", 
+      headerName: "Expected Date", 
+      flex: 1, 
+      type: 'date',
+      valueGetter: (params) => new Date(params.value),
+    },
   ];
 
   return (

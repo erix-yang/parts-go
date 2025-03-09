@@ -206,6 +206,7 @@ const Supplychain = () => {
       headerName: "Onsite",
       flex: 1,
       type: 'date',
+      valueGetter: (params) => new Date(params.value),
     },
     { 
       field: "plannedhours",
