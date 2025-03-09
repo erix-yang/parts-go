@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('User creation failed - no user ID')
       }
 
-      // 2. 创建用户配置
+      // 2. 获取角色的 UUID
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('id')
@@ -53,17 +53,18 @@ export const AuthProvider = ({ children }) => {
 
       if (roleError) throw roleError
 
+      // 3. 创建用户配置
       const userProfileData = {
-        id: uuidv4(),
+        id: authData.user.id,
         email: email,
         role: roleData.id,
       }
 
-      const { error } = await supabase
+      const { error: profileError } = await supabase
         .from('user_profiles')
         .insert([userProfileData])
 
-      if (error) throw error
+      if (profileError) throw profileError
 
       return authData
     } catch (error) {
