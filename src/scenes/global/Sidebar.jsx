@@ -42,6 +42,7 @@ const SidebarComponent = () => {
   return (
     <Box
       sx={{
+        position: 'relative',
         "& .pro-sidebar-inner": {
           background: `${colors.primary[100]} !important`,
         },
@@ -59,7 +60,7 @@ const SidebarComponent = () => {
         },
       }}
     >
-      <Sidebar collapsed={isCollapsed} style={{ width: isCollapsed ? '30px' : '150px' }}>
+      <Sidebar collapsed={isCollapsed} style={{ width: isCollapsed ? '0' : '150px', transition: 'width 0.3s' }}>
         <Menu iconShape="square">
           {/* LOGO AND MENU ICON */}
           <MenuItem
@@ -196,6 +197,8 @@ const SidebarComponent = () => {
           </Box>
         </Menu>
       </Sidebar>
+
+
     </Box>
   );
 };

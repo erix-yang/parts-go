@@ -840,31 +840,40 @@ const Shipping = () => {
             {filteredShippingData.filter(shipping => 
               shipping.addr_latitude && shipping.addr_longitude && 
               !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
-            ).map(shipping => (
-              <Marker 
-                key={shipping.id} 
-                position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
-                icon={createStatusIcon(shipping.status)}
-              >
-                <Popup>
-                  <div>
-                    <h3>{shipping.shop_name}</h3>
-                    <p>Invoice: {shipping.invoice}</p>
-                    <p>Task: {shipping.task}</p>
-                    <p>Status: {shipping.status}</p>
-                    <p>Driver: {shipping.driver}</p>
-                    <p>Date: {formatDateString(shipping.date)}</p>
+            ).map(shipping => {
+              // Find the corresponding client shop for the shipping record
+              const clientShop = clientShops.find(shop => shop.shop_name === shipping.shop_name);
 
-                    <Button 
-                      variant="contained" 
-                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
-                    >
-                      Open in Google Map
-                    </Button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+              return (
+                <Marker 
+                  key={shipping.id} 
+                  position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
+                  icon={createStatusIcon(shipping.status)}
+                >
+                  <Popup>
+                    <div>
+                      <h3>{shipping.shop_name}</h3>
+                      <p>Invoice: {shipping.invoice}</p>
+                      <p>Task: {shipping.task}</p>
+                      <p>Status: {shipping.status}</p>
+                      <p>Driver: {shipping.driver}</p>
+                      <p>Date: {formatDateString(shipping.date)}</p>
+
+                      <Button 
+                        variant="contained" 
+                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
+                        startIcon={<LocationOnIcon />}
+                        sx={{ mt: 1 }}
+                        color="primary"
+                        fullWidth
+                      >
+                        Open in Google Map
+                      </Button>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         </Box>
       </Box>
@@ -1039,7 +1048,7 @@ const Shipping = () => {
             display="flex" 
             flexWrap="wrap" 
             gap={2} 
-            alignItems="center"
+            alignItems="flex-start"
           >
             <FormControl 
               sx={{ 
@@ -1060,6 +1069,7 @@ const Shipping = () => {
                 name="status"
                 value={desktopFilters.status}
                 onChange={handleDesktopFilterChange}
+                InputLabelProps={{ shrink: true }}
               >
                 <MenuItem value="">All Statuses</MenuItem>
                 <MenuItem value="Pending">Pending</MenuItem>
@@ -1087,6 +1097,7 @@ const Shipping = () => {
                 name="driver"
                 value={desktopFilters.driver}
                 onChange={handleDesktopFilterChange}
+                InputLabelProps={{ shrink: true }}
               >
                 <MenuItem value="">All Drivers</MenuItem>
                 {drivers.map((driver) => (
@@ -1531,31 +1542,40 @@ const Shipping = () => {
               {filteredShippingData.filter(shipping => 
                 shipping.addr_latitude && shipping.addr_longitude && 
                 !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
-              ).map(shipping => (
-                <Marker 
-                  key={shipping.id} 
-                  position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
-                  icon={createStatusIcon(shipping.status)}
-                >
-                  <Popup>
-                    <div>
-                      <h3>{shipping.shop_name}</h3>
-                      <p>Invoice: {shipping.invoice}</p>
-                      <p>Task: {shipping.task}</p>
-                      <p>Status: {shipping.status}</p>
-                      <p>Driver: {shipping.driver}</p>
-                      <p>Date: {formatDateString(shipping.date)}</p>
+              ).map(shipping => {
+                // Find the corresponding client shop for the shipping record
+                const clientShop = clientShops.find(shop => shop.shop_name === shipping.shop_name);
 
-                      <Button 
-                        variant="contained" 
-                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
-                      >
-                        Open in Google Map
-                      </Button>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                return (
+                  <Marker 
+                    key={shipping.id} 
+                    position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
+                    icon={createStatusIcon(shipping.status)}
+                  >
+                    <Popup>
+                      <div>
+                        <h3>{shipping.shop_name}</h3>
+                        <p>Invoice: {shipping.invoice}</p>
+                        <p>Task: {shipping.task}</p>
+                        <p>Status: {shipping.status}</p>
+                        <p>Driver: {shipping.driver}</p>
+                        <p>Date: {formatDateString(shipping.date)}</p>
+
+                        <Button 
+                          variant="contained" 
+                          onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
+                          startIcon={<LocationOnIcon />}
+                          sx={{ mt: 1 }}
+                          color="primary"
+                          fullWidth
+                        >
+                          Open in Google Map
+                        </Button>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
             </MapContainer>
           </Box>
         </DialogContent>
