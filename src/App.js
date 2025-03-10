@@ -49,7 +49,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="*" element={<Navigate to="/login" />} />
+              <Route path="/deals" element={<Deals />} />
+              <Route path="*" element={<Navigate to="/deals" />} />
             </Routes>
           ) : (
             <div className="app">

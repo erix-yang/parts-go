@@ -37,11 +37,44 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// Custom marker icons for different statuses
+const createStatusIcon = (status) => {
+  let iconUrl;
+  
+  switch (status) {
+    case 'Delivered':
+      iconUrl = 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png';
+      break;
+    case 'In Transit':
+      iconUrl = 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png';
+      break;
+    default: // Pending
+      iconUrl = 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png';
+      break;
+  }
+  
+  return L.icon({
+    iconUrl: iconUrl,
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
+};
+
 const Shipping = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const fileInputRef = useRef(null);
+
+  // Helper functions for handling Pacific Time
+  const formatDateString = (dateString) => {
+    if (!dateString) return '';
+    // Simply return the date portion if it's an ISO string, or the string as is
+    return dateString.split('T')[0];
+  };
 
   const [shippingData, setShippingData] = useState([]);
   const [filteredShippingData, setFilteredShippingData] = useState([]);
@@ -75,6 +108,13 @@ const Shipping = () => {
   });
   const [isExporting, setIsExporting] = useState(false);
 
+  // Add this new state for desktop filters
+  const [desktopFilters, setDesktopFilters] = useState({
+    status: '',
+    driver: '',
+    date: ''
+  });
+
   useEffect(() => {
     getShippingData();
     getClientShops();
@@ -94,8 +134,26 @@ const Shipping = () => {
         .order('date', { ascending: false });
       
       if (error) throw error;
+      
+      // Save the current filters before updating data
+      const hasDesktopFilters = desktopFilters.status || desktopFilters.driver || desktopFilters.date;
+      const hasMobileFilters = mobileFilters.status || mobileFilters.driver || 
+                               mobileFilters.shop_name || mobileFilters.date || mobileFilters.search;
+      
+      // Update the data
       setShippingData(data);
-      setFilteredShippingData(data);
+      
+      // Don't reset filtered data yet if we have active filters
+      if (!hasDesktopFilters && !hasMobileFilters) {
+        setFilteredShippingData(data);
+      }
+      
+      // Re-apply filters if needed
+      if (isMobile && hasMobileFilters) {
+        setTimeout(applyMobileFilters, 0);
+      } else if (!isMobile && hasDesktopFilters) {
+        setTimeout(applyDesktopFilters, 0);
+      }
     } catch (error) {
       console.error('Error fetching shipping data:', error.message);
     }
@@ -192,6 +250,18 @@ const Shipping = () => {
         if (error) throw error;
         
         await getShippingData();
+        
+        // Reapply filters after data refresh
+        if (isMobile) {
+          if (mobileFilters.status || mobileFilters.driver || mobileFilters.shop_name || 
+              mobileFilters.date || mobileFilters.search) {
+            applyMobileFilters();
+          }
+        } else {
+          if (desktopFilters.status || desktopFilters.driver || desktopFilters.date) {
+            applyDesktopFilters();
+          }
+        }
       } catch (error) {
         console.error('Error deleting shipping:', error.message);
         alert('Error deleting shipping entry');
@@ -201,16 +271,17 @@ const Shipping = () => {
 
   const handleSubmit = async () => {
     try {
+      // Use the date string directly without timezone conversion
       if (dialogMode === 'add') {
         const { error } = await supabase
           .from('shipping')
-          .insert([formData]);
+          .insert([{ ...formData }]);
         
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('shipping')
-          .update(formData)
+          .update({ ...formData })
           .eq('id', selectedShipping.id);
         
         if (error) throw error;
@@ -218,6 +289,20 @@ const Shipping = () => {
       
       setOpenDialog(false);
       await getShippingData();
+      
+      // Reapply filters after data refresh
+      if (isMobile) {
+        // Reapply mobile filters if any exist
+        if (mobileFilters.status || mobileFilters.driver || mobileFilters.shop_name || 
+            mobileFilters.date || mobileFilters.search) {
+          applyMobileFilters();
+        }
+      } else {
+        // Reapply desktop filters if any exist
+        if (desktopFilters.status || desktopFilters.driver || desktopFilters.date) {
+          applyDesktopFilters();
+        }
+      }
     } catch (error) {
       console.error('Error saving shipping:', error.message);
       alert('Error saving shipping entry');
@@ -264,6 +349,18 @@ const Shipping = () => {
           if (updateError) throw updateError;
 
           await getShippingData();
+          
+          // Reapply filters after data refresh
+          if (isMobile) {
+            if (mobileFilters.status || mobileFilters.driver || mobileFilters.shop_name || 
+                mobileFilters.date || mobileFilters.search) {
+              applyMobileFilters();
+            }
+          } else {
+            if (desktopFilters.status || desktopFilters.driver || desktopFilters.date) {
+              applyDesktopFilters();
+            }
+          }
         } catch (compressionError) {
           console.error('Error compressing image:', compressionError.message);
           alert('Error compressing image');
@@ -306,27 +403,86 @@ const Shipping = () => {
 
   // 处理 DataGrid 筛选变化
   const handleFilterModelChange = (model) => {
-    // 这里简单实现，在实际应用中您可能需要更复杂的筛选逻辑
     if (model.items.length > 0) {
       // 有筛选条件
       const filtered = shippingData.filter(item => {
-        for (const filter of model.items) {
+        // 循环所有筛选条件，当前逻辑是所有条件都必须满足（AND 逻辑）
+        return model.items.every(filter => {
           const field = filter.field;
           const value = filter.value;
           const operator = filter.operator;
 
-          if (operator === 'contains') {
-            if (!String(item[field]).toLowerCase().includes(String(value).toLowerCase())) {
-              return false;
-            }
-          } else if (operator === 'equals') {
-            if (String(item[field]) !== String(value)) {
-              return false;
+          // 空值检查
+          if (value === undefined || value === null || value === '') return true;
+
+          // 确保字段值存在
+          const itemValue = item[field];
+          if (itemValue === undefined || itemValue === null) return false;
+          
+          // 日期字段需要特殊处理
+          if (field === 'date') {
+            const itemDate = new Date(itemValue).setHours(0, 0, 0, 0);
+            const filterDate = new Date(value).setHours(0, 0, 0, 0);
+            
+            switch (operator) {
+              case 'equals':
+              case 'is':
+              case '=':
+                return itemDate === filterDate;
+              case '>':
+                return itemDate > filterDate;
+              case '>=':
+                return itemDate >= filterDate;
+              case '<':
+                return itemDate < filterDate;
+              case '<=':
+                return itemDate <= filterDate;
+              case '!=':
+              case 'not':
+                return itemDate !== filterDate;
+              default:
+                return true;
             }
           }
-          // 可以根据需要添加更多操作符的处理
-        }
-        return true;
+          
+          // 字符串比较（大多数字段）
+          const itemValueStr = String(itemValue).toLowerCase();
+          const filterValueStr = String(value).toLowerCase();
+
+          // 根据不同操作符处理
+          switch (operator) {
+            case 'contains':
+              return itemValueStr.includes(filterValueStr);
+            case 'equals':
+            case 'is':
+            case '=':
+              return itemValueStr === filterValueStr;
+            case 'startsWith':
+              return itemValueStr.startsWith(filterValueStr);
+            case 'endsWith':
+              return itemValueStr.endsWith(filterValueStr);
+            case 'isEmpty':
+              return itemValueStr === '';
+            case 'isNotEmpty':
+              return itemValueStr !== '';
+            case '!=':
+            case 'not':
+              return itemValueStr !== filterValueStr;
+            // 数值比较
+            case '>':
+              return parseFloat(itemValue) > parseFloat(value);
+            case '>=':
+              return parseFloat(itemValue) >= parseFloat(value);
+            case '<':
+              return parseFloat(itemValue) < parseFloat(value);
+            case '<=':
+              return parseFloat(itemValue) <= parseFloat(value);
+            default:
+              // 关键修复：未知操作符应该返回 true 而不是 false
+              // 这样不会干扰其他有效的过滤条件
+              return true;
+          }
+        });
       });
       setFilteredShippingData(filtered);
     } else {
@@ -365,8 +521,8 @@ const Shipping = () => {
     // 按日期筛选
     if (mobileFilters.date) {
       filtered = filtered.filter(item => {
-        const itemDate = new Date(item.date).toISOString().split('T')[0];
-        return itemDate === mobileFilters.date; // 比较日期
+        const itemDate = formatDateString(item.date);
+        return itemDate === mobileFilters.date;
       });
     }
     
@@ -472,8 +628,8 @@ const Shipping = () => {
       field: "date", 
       headerName: "Date", 
       flex: 1,
-      type: 'date',
-      valueGetter: (params) => new Date(params.value),
+      // Use the simple string format directly
+      valueFormatter: (params) => formatDateString(params.value),
     },
     { field: "driver", headerName: "Driver", flex: 1 },
     { field: "invoice", headerName: "Invoice", flex: 1 },
@@ -552,7 +708,7 @@ const Shipping = () => {
             </Button>
           </Box>
           
-          {/* 添加导出按钮 */}
+          {/* 添加导出按钮和应用过滤器按钮 */}
           <Box display="flex" justifyContent="flex-end" mb={1}>
             <Button
               variant="contained"
@@ -567,9 +723,24 @@ const Shipping = () => {
                   color: colors.grey[100],
                 },
                 fontSize: "12px",
+                mr: 1, // Add margin to separate buttons
               }}
             >
               {isExporting ? 'Exporting...' : 'Export CSV with Images'}
+            </Button>
+            {/* Add Apply Filter button */}
+            <Button 
+              variant="contained"
+              onClick={applyFilters}
+              sx={{ 
+                backgroundColor: colors.blueAccent[600],
+                color: colors.grey[100],
+                '&:hover': {
+                  backgroundColor: colors.blueAccent[500],
+                }
+              }}
+            >
+              Apply Filters
             </Button>
           </Box>
           
@@ -619,7 +790,7 @@ const Shipping = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" color={colors.grey[300]}>
-                  Date: {new Date(shipping.date).toLocaleDateString()}
+                  Date: {formatDateString(shipping.date)}
                 </Typography>
                 <Typography variant="body2" color={colors.grey[300]}>
                   Driver: {shipping.driver}
@@ -704,6 +875,64 @@ const Shipping = () => {
     );
   };
 
+  // Add this new handler for desktop filter changes
+  const handleDesktopFilterChange = (e) => {
+    const { name, value } = e.target;
+    setDesktopFilters({
+      ...desktopFilters,
+      [name]: value
+    });
+  };
+
+  // Add this function to apply desktop filters
+  const applyDesktopFilters = () => {
+    let filtered = [...shippingData];
+    
+    // Filter by status
+    if (desktopFilters.status) {
+      filtered = filtered.filter(item => item.status === desktopFilters.status);
+    }
+    
+    // Filter by driver
+    if (desktopFilters.driver) {
+      filtered = filtered.filter(item => item.driver === desktopFilters.driver);
+    }
+    
+    // Filter by date
+    if (desktopFilters.date) {
+      filtered = filtered.filter(item => {
+        const itemDate = formatDateString(item.date);
+        return itemDate === desktopFilters.date;
+      });
+    }
+    
+    setFilteredShippingData(filtered);
+  };
+
+  // Add this function to reset desktop filters
+  const resetDesktopFilters = () => {
+    setDesktopFilters({
+      status: '',
+      driver: '',
+      date: ''
+    });
+    setFilteredShippingData(shippingData);
+  };
+
+  // Apply filters whenever they change
+  useEffect(() => {
+    applyDesktopFilters();
+  }, [desktopFilters]); // This will apply filters when any filter value changes
+
+  // Add this function to apply filters
+  const applyFilters = () => {
+    if (isMobile) {
+      applyMobileFilters();
+    } else {
+      applyDesktopFilters();
+    }
+  };
+
   return (
     <Box m="20px">
       <Header title="SHIPPING" subtitle="Manage Shipping Tasks" />
@@ -747,6 +976,257 @@ const Shipping = () => {
         </Button>
       </Box>
 
+      {/* Add desktop filter panel - only show on desktop */}
+      {!isMobile && (
+        <Box 
+          display="flex" 
+          flexDirection="column"
+          gap={2} 
+          p={3} 
+          mb={3} 
+          bgcolor={colors.primary[400]}
+          borderRadius="8px"
+          boxShadow={`0px 4px 10px rgba(0, 0, 0, 0.1)`}
+        >
+          <Typography variant="h6" fontWeight="600" mb={1}>
+            Filter Shipping Records
+          </Typography>
+          
+          <Box 
+            display="flex" 
+            flexWrap="wrap" 
+            gap={2} 
+            alignItems="center"
+          >
+            <FormControl 
+              sx={{ 
+                minWidth: 180,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px',
+                  backgroundColor: colors.primary[500],
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: colors.primary[450],
+                  }
+                }
+              }}
+            >
+              <InputLabel>Status</InputLabel>
+              <Select
+                size="small"
+                name="status"
+                value={desktopFilters.status}
+                onChange={handleDesktopFilterChange}
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                <MenuItem value="Pending">Pending</MenuItem>
+                <MenuItem value="In Transit">In Transit</MenuItem>
+                <MenuItem value="Delivered">Delivered</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl 
+              sx={{ 
+                minWidth: 220,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px',
+                  backgroundColor: colors.primary[500],
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: colors.primary[450],
+                  }
+                }
+              }}
+            >
+              <InputLabel>Driver</InputLabel>
+              <Select
+                size="small"
+                name="driver"
+                value={desktopFilters.driver}
+                onChange={handleDesktopFilterChange}
+              >
+                <MenuItem value="">All Drivers</MenuItem>
+                {drivers.map((driver) => (
+                  <MenuItem key={driver.id} value={driver.name}>
+                    {driver.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <TextField
+              name="date"
+              label="Date"
+              type="date"
+              size="small"
+              value={desktopFilters.date}
+              onChange={handleDesktopFilterChange}
+              InputLabelProps={{ shrink: true }}
+              sx={{ 
+                minWidth: 200,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px',
+                  backgroundColor: colors.primary[500],
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: colors.primary[450],
+                  }
+                }
+              }}
+            />
+            
+            <Button 
+              variant="outlined"
+              onClick={resetDesktopFilters}
+              startIcon={<FilterListIcon />}
+              sx={{ 
+                height: 40, 
+                borderRadius: '8px',
+                borderColor: colors.grey[400],
+                color: colors.grey[100],
+                '&:hover': {
+                  borderColor: colors.grey[300],
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                }
+              }}
+            >
+              Clear Filters
+            </Button>
+
+            {/* Add Apply Filter button */}
+            <Button 
+              variant="contained"
+              onClick={applyFilters}
+              sx={{ 
+                height: 40, 
+                borderRadius: '8px',
+                backgroundColor: colors.blueAccent[600],
+                color: colors.grey[100],
+                '&:hover': {
+                  backgroundColor: colors.blueAccent[500],
+                }
+              }}
+            >
+              Apply Filters
+            </Button>
+          </Box>
+          
+          {/* Show active filters */}
+          {(desktopFilters.status || desktopFilters.driver || desktopFilters.date) && (
+            <Box 
+              display="flex" 
+              flexWrap="wrap" 
+              gap={1} 
+              alignItems="center" 
+              mt={1}
+              p={1.5}
+              borderRadius="6px"
+              bgcolor={colors.primary[500]}
+            >
+              <Typography variant="body2" fontWeight="600" mr={1}>
+                Active filters:
+              </Typography>
+              {desktopFilters.status && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: colors.blueAccent[600],
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: colors.blueAccent[500],
+                    }
+                  }}
+                >
+                  <Typography variant="body2" sx={{ mr: 1 }}>
+                    Status: {desktopFilters.status}
+                  </Typography>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setDesktopFilters({...desktopFilters, status: ''})}
+                    sx={{ 
+                      p: 0.2, 
+                      color: colors.grey[100],
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      }
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
+              {desktopFilters.driver && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: colors.greenAccent[600],
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: colors.greenAccent[500],
+                    }
+                  }}
+                >
+                  <Typography variant="body2" sx={{ mr: 1 }}>
+                    Driver: {desktopFilters.driver}
+                  </Typography>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setDesktopFilters({...desktopFilters, driver: ''})}
+                    sx={{ 
+                      p: 0.2, 
+                      color: colors.grey[100],
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      }
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
+              {desktopFilters.date && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: colors.redAccent[600],
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: colors.redAccent[500],
+                    }
+                  }}
+                >
+                  <Typography variant="body2" sx={{ mr: 1 }}>
+                    Date: {desktopFilters.date}
+                  </Typography>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setDesktopFilters({...desktopFilters, date: ''})}
+                    sx={{ 
+                      p: 0.2, 
+                      color: colors.grey[100],
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      }
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+      )}
+
       <Box
         m="40px 0 0 0"
         height="75vh"
@@ -780,7 +1260,7 @@ const Shipping = () => {
           renderMobileCards()
         ) : (
           <DataGrid
-            rows={shippingData}
+            rows={filteredShippingData}
             columns={columns}
             components={{ Toolbar: CustomToolbar }}
             onFilterModelChange={handleFilterModelChange}
@@ -949,6 +1429,62 @@ const Shipping = () => {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              
+              {/* Add map legend */}
+              <div style={{ 
+                position: 'absolute', 
+                bottom: '30px', 
+                right: '20px', 
+                backgroundColor: 'rgba(255, 255, 255, 0.9)', 
+                padding: '12px 15px', 
+                borderRadius: '10px',
+                zIndex: 1000,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
+                border: '1px solid rgba(0,0,0,0.1)',
+                maxWidth: '200px',
+                backdropFilter: 'blur(5px)'
+              }}>
+                <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ borderBottom: '1px solid rgba(0,0,0,0.1)', pb: 0.5 }}>
+                  Status Legend
+                </Typography>
+                <Box display="flex" alignItems="center" mt={1.5}>
+                  <div style={{ 
+                    height: '20px', 
+                    width: '20px', 
+                    backgroundColor: '#FFA500', 
+                    borderRadius: '50%', 
+                    marginRight: '10px',
+                    border: '1px solid rgba(0,0,0,0.2)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }} />
+                  <Typography variant="body2">Pending</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" mt={1}>
+                  <div style={{ 
+                    height: '20px', 
+                    width: '20px', 
+                    backgroundColor: '#2196F3', 
+                    borderRadius: '50%', 
+                    marginRight: '10px',
+                    border: '1px solid rgba(0,0,0,0.2)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }} />
+                  <Typography variant="body2">In Transit</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" mt={1}>
+                  <div style={{ 
+                    height: '20px', 
+                    width: '20px', 
+                    backgroundColor: '#4CAF50', 
+                    borderRadius: '50%', 
+                    marginRight: '10px',
+                    border: '1px solid rgba(0,0,0,0.2)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }} />
+                  <Typography variant="body2">Delivered</Typography>
+                </Box>
+              </div>
+              
               {filteredShippingData.filter(shipping => 
                 shipping.addr_latitude && shipping.addr_longitude && 
                 !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
@@ -956,6 +1492,7 @@ const Shipping = () => {
                 <Marker 
                   key={shipping.id} 
                   position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
+                  icon={createStatusIcon(shipping.status)}
                 >
                   <Popup>
                     <div>
@@ -964,7 +1501,8 @@ const Shipping = () => {
                       <p>Task: {shipping.task}</p>
                       <p>Status: {shipping.status}</p>
                       <p>Driver: {shipping.driver}</p>
-                      <p>Date: {new Date(shipping.date).toLocaleDateString()}</p>
+                      <p>Date: {formatDateString(shipping.date)}</p>
+
                       <Button 
                         variant="contained" 
                         onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
@@ -1048,7 +1586,8 @@ const Shipping = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={resetMobileFilters}>Reset</Button>
-          <Button onClick={applyMobileFilters} variant="contained">Apply</Button>
+          {/* Add Apply Filter button */}
+          <Button onClick={applyFilters} variant="contained">Apply Filters</Button>
         </DialogActions>
       </Dialog>
     </Box>

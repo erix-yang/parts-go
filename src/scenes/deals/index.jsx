@@ -13,6 +13,7 @@ import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import { Link } from "react-router-dom";
 
 const Deals = () => {
   const theme = useTheme();
@@ -374,6 +375,24 @@ const Deals = () => {
           )}
         </Box>
       </Container>
+
+      <Box display="flex" justifyContent="flex-end" mt={2}>
+        <Button
+          component={Link}
+          to="/login"
+          variant="outlined"
+          sx={{
+            color: colors.blueAccent[600],
+            borderColor: colors.blueAccent[600],
+            '&:hover': {
+              backgroundColor: colors.blueAccent[600],
+              color: colors.grey[100],
+            },
+          }}
+        >
+          Log In
+        </Button>
+      </Box>
     </Box>
   );
 };
