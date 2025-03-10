@@ -376,7 +376,7 @@ const Deals = () => {
         </Box>
       </Container>
 
-      <Box display="flex" justifyContent="flex-end" mt={2}>
+      <Box display="flex" justifyContent="flex-end" mt={2} sx={{ justifyContent: 'center' }}>
         <Button
           component={Link}
           to="/login"
@@ -388,9 +388,25 @@ const Deals = () => {
               backgroundColor: colors.blueAccent[600],
               color: colors.grey[100],
             },
+            marginRight: 2,
           }}
         >
           Log In
+        </Button>
+        <Button
+          component={Link}
+          to="/register"
+          variant="outlined"
+          sx={{
+            color: colors.blueAccent[600],
+            borderColor: colors.blueAccent[600],
+            '&:hover': {
+              backgroundColor: colors.blueAccent[600],
+              color: colors.grey[100],
+            },
+          }}
+        >
+          Sign Up
         </Button>
       </Box>
     </Box>
