@@ -824,6 +824,49 @@ const Shipping = () => {
             </Card>
           ))
         )}
+        
+        {/* Map Display for Filtered Shipping Data */}
+        <Box sx={{ height: '70vh', width: '100%', mt: 2 }}>
+          <MapContainer 
+            center={calculateMapCenter()} 
+            zoom={11} 
+            style={{ height: '100%', width: '100%' }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            
+            {filteredShippingData.filter(shipping => 
+              shipping.addr_latitude && shipping.addr_longitude && 
+              !isNaN(shipping.addr_latitude) && !isNaN(shipping.addr_longitude)
+            ).map(shipping => (
+              <Marker 
+                key={shipping.id} 
+                position={[parseFloat(shipping.addr_latitude), parseFloat(shipping.addr_longitude)]}
+                icon={createStatusIcon(shipping.status)}
+              >
+                <Popup>
+                  <div>
+                    <h3>{shipping.shop_name}</h3>
+                    <p>Invoice: {shipping.invoice}</p>
+                    <p>Task: {shipping.task}</p>
+                    <p>Status: {shipping.status}</p>
+                    <p>Driver: {shipping.driver}</p>
+                    <p>Date: {formatDateString(shipping.date)}</p>
+
+                    <Button 
+                      variant="contained" 
+                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${shipping.addr_latitude},${shipping.addr_longitude}`, '_blank')}
+                    >
+                      Open in Google Map
+                    </Button>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </Box>
       </Box>
     );
   };
